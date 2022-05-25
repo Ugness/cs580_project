@@ -17,6 +17,7 @@ class Embedder:
         self.kwargs = kwargs
         self.create_embedding_fn()
         
+    @torch.no_grad()
     def create_embedding_fn(self):
         embed_fns = []
         d = self.kwargs['input_dims']
@@ -29,9 +30,9 @@ class Embedder:
         N_freqs = self.kwargs['num_freqs']
         
         if self.kwargs['log_sampling']:
-            freq_bands = 2.**torch.linspace(0., max_freq, steps=N_freqs)
+            freq_bands = 2.**np.linspace(0., max_freq, N_freqs)
         else:
-            freq_bands = torch.linspace(2.**0., 2.**max_freq, steps=N_freqs)
+            freq_bands = np.linspace(2.**0., 2.**max_freq, N_freqs)
             
         for freq in freq_bands:
             for p_fn in self.kwargs['periodic_fns']:
@@ -76,6 +77,8 @@ class NeRF(nn.Module):
         self.skips = skips
         self.use_viewdirs = use_viewdirs
         
+        linears = []
+        linears.append(nn.Linear(input_ch, W))
         self.pts_linears = nn.ModuleList(
             [nn.Linear(input_ch, W)] + [nn.Linear(W, W) if i not in self.skips else nn.Linear(W + input_ch, W) for i in range(D-1)])
         
@@ -150,6 +153,7 @@ class NeRF(nn.Module):
 
 
 # Ray helpers
+@torch.no_grad()
 def get_rays(H, W, K, c2w):
     i, j = torch.meshgrid(torch.linspace(0, W-1, W), torch.linspace(0, H-1, H))  # pytorch's meshgrid has indexing='ij'
     i = i.t()

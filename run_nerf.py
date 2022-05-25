@@ -7,6 +7,7 @@ import time
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm, trange
 
 import matplotlib.pyplot as plt
@@ -174,7 +175,7 @@ def render_path(render_poses, hwf, K, chunk, render_kwargs, gt_imgs=None, savedi
 
     return rgbs, disps
 
-
+@torch.no_grad()
 def create_nerf(args):
     """Instantiate NeRF's MLP model.
     """
@@ -571,6 +572,7 @@ def train():
         images, poses, render_poses, hwf, i_split = load_blender_data(args.datadir, args.half_res, args.testskip)
         print('Loaded blender', images.shape, render_poses.shape, hwf, args.datadir)
         i_train, i_test = i_split
+        i_val = i_test
 
         near = 2.
         far = 6.
@@ -627,6 +629,7 @@ def train():
     basedir = args.basedir
     expname = args.expname
     os.makedirs(os.path.join(basedir, expname), exist_ok=True)
+    writer = SummaryWriter(os.path.join(basedir, expname))
     f = os.path.join(basedir, expname, 'args.txt')
     with open(f, 'w') as file:
         for arg in sorted(vars(args)):
@@ -638,7 +641,9 @@ def train():
             file.write(open(args.config, 'r').read())
 
     # Create nerf model
+    print('Creating NERF')
     render_kwargs_train, render_kwargs_test, start, grad_vars, optimizer = create_nerf(args)
+    print('Creating NERF done')
     global_step = start
 
     bds_dict = {
@@ -828,47 +833,36 @@ def train():
     
         if i%args.i_print==0:
             tqdm.write(f"[TRAIN] Iter: {i} Loss: {loss.item()}  PSNR: {psnr.item()}")
-        """
-            print(expname, i, psnr.numpy(), loss.numpy(), global_step.numpy())
-            print('iter time {:.05f}'.format(dt))
 
-            with tf.contrib.summary.record_summaries_every_n_global_steps(args.i_print):
-                tf.contrib.summary.scalar('loss', loss)
-                tf.contrib.summary.scalar('psnr', psnr)
-                tf.contrib.summary.histogram('tran', trans)
-                if args.N_importance > 0:
-                    tf.contrib.summary.scalar('psnr0', psnr0)
+            writer.add_scalar('loss', loss, i)
+            writer.add_scalar('psnr', psnr, i)
+            writer.add_histogram('tran', trans, i)
+            if args.N_importance > 0:
+                writer.add_scalar('psnr0', psnr0, i)
 
 
             if i%args.i_img==0:
-
                 # Log a rendered validation view to Tensorboard
                 img_i=np.random.choice(i_val)
                 target = images[img_i]
                 pose = poses[img_i, :3,:4]
                 with torch.no_grad():
-                    rgb, disp, acc, extras = render(H, W, focal, chunk=args.chunk, c2w=pose,
+                    rgb, disp, acc, extras = render(H, W, K, chunk=args.chunk, c2w=pose,
                                                         **render_kwargs_test)
 
                 psnr = mse2psnr(img2mse(rgb, target))
 
-                with tf.contrib.summary.record_summaries_every_n_global_steps(args.i_img):
+                writer.add_image('rgb', to8b(rgb.cpu().numpy()), i, dataformats='HWC')
+                writer.add_image('disp', disp, i, dataformats='HW')
+                writer.add_image('acc', acc, i, dataformats='HW')
 
-                    tf.contrib.summary.image('rgb', to8b(rgb)[tf.newaxis])
-                    tf.contrib.summary.image('disp', disp[tf.newaxis,...,tf.newaxis])
-                    tf.contrib.summary.image('acc', acc[tf.newaxis,...,tf.newaxis])
-
-                    tf.contrib.summary.scalar('psnr_holdout', psnr)
-                    tf.contrib.summary.image('rgb_holdout', target[tf.newaxis])
-
+                writer.add_scalar('psnr_holdout', psnr)
+                writer.add_image('rgb_holdout', target, i, dataformats='HWC')
 
                 if args.N_importance > 0:
-
-                    with tf.contrib.summary.record_summaries_every_n_global_steps(args.i_img):
-                        tf.contrib.summary.image('rgb0', to8b(extras['rgb0'])[tf.newaxis])
-                        tf.contrib.summary.image('disp0', extras['disp0'][tf.newaxis,...,tf.newaxis])
-                        tf.contrib.summary.image('z_std', extras['z_std'][tf.newaxis,...,tf.newaxis])
-        """
+                    writer.add_image('rgb0', to8b(extras['rgb0'].cpu().numpy()), i, dataformats='HWC')
+                    writer.add_image('disp0', extras['disp0'], i, dataformats='HW')
+                    writer.add_image('z_std', extras['z_std'], i, dataformats='HW')
 
         global_step += 1
 

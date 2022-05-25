@@ -1,6 +1,6 @@
-expname = hotdog_90
+expname = hotdog_60
 basedir = ./logs
-datadir = ./data/HotDog_90
+datadir = ./data/HotDog_60
 dataset_type = blender
 
 half_res = True
