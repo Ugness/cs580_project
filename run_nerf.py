@@ -15,7 +15,7 @@ from run_nerf_helpers import *
 
 from load_llff import load_llff_data
 from load_deepvoxels import load_dv_data
-from load_blender import load_blender_data
+from load_custom_blender import load_blender_data
 from load_LINEMOD import load_LINEMOD_data
 
 
@@ -491,7 +491,7 @@ def config_parser():
     # dataset options
     parser.add_argument("--dataset_type", type=str, default='llff', 
                         help='options: llff / blender / deepvoxels')
-    parser.add_argument("--testskip", type=int, default=8, 
+    parser.add_argument("--testskip", type=int, default=0, 
                         help='will load 1/N images from test/val sets, useful for large datasets like deepvoxels')
 
     ## deepvoxels flags
@@ -567,9 +567,10 @@ def train():
         print('NEAR FAR', near, far)
 
     elif args.dataset_type == 'blender':
+        print('Loading blender ...')
         images, poses, render_poses, hwf, i_split = load_blender_data(args.datadir, args.half_res, args.testskip)
         print('Loaded blender', images.shape, render_poses.shape, hwf, args.datadir)
-        i_train, i_val, i_test = i_split
+        i_train, i_test = i_split
 
         near = 2.
         far = 6.
