@@ -36,7 +36,6 @@ def pose_spherical(theta, phi, radius):
 def pose_spherical2(theta, phi, radius):
     c2w = trans_t(radius)
     c2w = rot_phi(phi/180.*np.pi) @ c2w
-    # c2w = rot_theta(theta/180.*np.pi) @ c2w
     rot_mx = np.stack([rot_theta(x/180. * np.pi) for x in theta], 0)
     c2w = np.einsum('bij, jk -> bik', rot_mx, c2w)
     c2w = np.einsum('ij, bjk -> bik', np.array([[-1,0,0,0],[0,0,1,0],[0,1,0,0],[0,0,0,1]]), c2w)
@@ -44,7 +43,6 @@ def pose_spherical2(theta, phi, radius):
 
 def load_blender_data(basedir, half_res=False, testskip=1):
     splits = ['train', 'test']
-    # splits = ['test']
     metas = {}
     for s in splits:
         with open(os.path.join(basedir+f'_{s}', 'transforms_new.json'.format(s)), 'r') as fp:
@@ -62,7 +60,7 @@ def load_blender_data(basedir, half_res=False, testskip=1):
         else:
             skip = testskip
             
-        for frame in meta['frames'][::skip]:
+        for frame in meta['frames']:
             fname = os.path.join(basedir+f'_{s}', frame['file_name'] + '.png')
             imgs.append(imageio.imread(fname))
             poses.append(np.array(frame['simulated_matrix']))
@@ -93,7 +91,6 @@ def load_blender_data(basedir, half_res=False, testskip=1):
         for i, img in enumerate(imgs):
             imgs_half_res[i] = cv2.resize(img, (W, H), interpolation=cv2.INTER_AREA)
         imgs = imgs_half_res
-        # imgs = tf.image.resize_area(imgs, [400, 400]).numpy()
 
         
     return imgs, poses, render_poses, [H, W, focal], i_split
