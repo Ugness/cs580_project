@@ -6,25 +6,23 @@ import json
 import torch.nn.functional as F
 import cv2
 
-
-trans_t = lambda t : torch.Tensor([
+trans_t = lambda t : np.array([
     [1,0,0,0],
     [0,1,0,0],
     [0,0,1,t],
-    [0,0,0,1]]).float()
+    [0,0,0,1.]])
 
-rot_phi = lambda phi : torch.Tensor([
+rot_phi = lambda phi : np.array([
     [1,0,0,0],
     [0,np.cos(phi),-np.sin(phi),0],
     [0,np.sin(phi), np.cos(phi),0],
-    [0,0,0,1]]).float()
+    [0,0,0,1.]])
 
-rot_theta = lambda th : torch.Tensor([
+rot_theta = lambda th : np.array([
     [np.cos(th),0,-np.sin(th),0],
     [0,1,0,0],
     [np.sin(th),0, np.cos(th),0],
-    [0,0,0,1]]).float()
-
+    [0,0,0,1.]])
 
 def pose_spherical(theta, phi, radius):
     c2w = trans_t(radius)
@@ -33,8 +31,15 @@ def pose_spherical(theta, phi, radius):
     c2w = torch.Tensor(np.array([[-1,0,0,0],[0,0,1,0],[0,1,0,0],[0,0,0,1]])) @ c2w
     return c2w
 
+def pose_spherical2(theta, phi, radius):
+    c2w = trans_t(radius)
+    c2w = rot_phi(phi/180.*np.pi) @ c2w
+    rot_mx = np.stack([rot_theta(x/180. * np.pi) for x in theta], 0)
+    c2w = np.einsum('bij, jk -> bik', rot_mx, c2w)
+    c2w = np.einsum('ij, bjk -> bik', np.array([[-1,0,0,0],[0,0,1,0],[0,1,0,0],[0,0,0,1]]), c2w)
+    return c2w
 
-def load_blender_data(basedir, half_res=False, testskip=1):
+def load_blender_orig_data(basedir, half_res=False, testskip=1):
     splits = ['train', 'val', 'test']
     metas = {}
     for s in splits:
@@ -72,7 +77,8 @@ def load_blender_data(basedir, half_res=False, testskip=1):
     camera_angle_x = float(meta['camera_angle_x'])
     focal = .5 * W / np.tan(.5 * camera_angle_x)
     
-    render_poses = torch.stack([pose_spherical(angle, -30.0, 4.0) for angle in np.linspace(-180,180,40+1)[:-1]], 0)
+    # render_poses = torch.tensor(np.stack([pose_spherical(angle, -30.0, 4.0) for angle in np.linspace(-180,180,40+1)[:-1]], 0))
+    render_poses = pose_spherical2(np.linspace(-180,180,40+1)[:-1], -30.0, 4.0)
     
     if half_res:
         H = H//2
@@ -83,7 +89,6 @@ def load_blender_data(basedir, half_res=False, testskip=1):
         for i, img in enumerate(imgs):
             imgs_half_res[i] = cv2.resize(img, (W, H), interpolation=cv2.INTER_AREA)
         imgs = imgs_half_res
-        # imgs = tf.image.resize_area(imgs, [400, 400]).numpy()
 
         
     return imgs, poses, render_poses, [H, W, focal], i_split

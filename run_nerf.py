@@ -17,6 +17,7 @@ from run_nerf_helpers import *
 from load_llff import load_llff_data
 from load_deepvoxels import load_dv_data
 from load_custom_blender import load_blender_data
+from load_blender import load_blender_orig_data
 from load_LINEMOD import load_LINEMOD_data
 
 
@@ -185,6 +186,10 @@ def create_nerf(args):
     embeddirs_fn = None
     if args.use_viewdirs:
         embeddirs_fn, input_ch_views = get_embedder(args.multires_views, args.i_embed)
+    '''
+    if args.use_rotations:
+        embedrots_fn, input_ch_rots = get_embedder(args.multires_rots, args.i_embed)
+    '''
     output_ch = 5 if args.N_importance > 0 else 4
     skips = [4]
     model = NeRF(D=args.netdepth, W=args.netwidth,
@@ -573,6 +578,20 @@ def train():
         print('Loaded blender', images.shape, render_poses.shape, hwf, args.datadir)
         i_train, i_test = i_split
         i_val = i_test
+
+        near = 2.
+        far = 6.
+
+        if args.white_bkgd:
+            images = images[...,:3]*images[...,-1:] + (1.-images[...,-1:])
+        else:
+            images = images[...,:3]
+
+    elif args.dataset_type == 'blender_orig':
+        print('Loading blender ...')
+        images, poses, render_poses, hwf, i_split = load_blender_orig_data(args.datadir, args.half_res, args.testskip)
+        print('Loaded blender', images.shape, render_poses.shape, hwf, args.datadir)
+        i_train, i_val, i_test = i_split
 
         near = 2.
         far = 6.

@@ -4,7 +4,6 @@ datadir = ./data/HotDog_30
 dataset_type = blender
 
 half_res = True
-white_bkgd = True
 
 N_rand = 1024
 N_samples = 64
