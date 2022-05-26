@@ -499,6 +499,7 @@ def config_parser():
                         help='options: llff / blender / deepvoxels')
     parser.add_argument("--testskip", type=int, default=0, 
                         help='will load 1/N images from test/val sets, useful for large datasets like deepvoxels')
+    parser.add_argument("--exact", action='store_true')
 
     ## deepvoxels flags
     parser.add_argument("--shape", type=str, default='greek', 
@@ -574,7 +575,7 @@ def train():
 
     elif args.dataset_type == 'blender':
         print('Loading blender ...')
-        images, poses, render_poses, hwf, i_split = load_blender_data(args.datadir, args.half_res, args.testskip)
+        images, poses, render_poses, hwf, i_split = load_blender_data(args.datadir, args.half_res, args.testskip, not args.exact)
         print('Loaded blender', images.shape, render_poses.shape, hwf, args.datadir)
         i_train, i_test = i_split
         i_val = i_test

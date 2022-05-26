@@ -41,7 +41,7 @@ def pose_spherical2(theta, phi, radius):
     c2w = np.einsum('ij, bjk -> bik', np.array([[-1,0,0,0],[0,0,1,0],[0,1,0,0],[0,0,0,1]]), c2w)
     return c2w
 
-def load_blender_data(basedir, half_res=False, testskip=1):
+def load_blender_data(basedir, half_res=False, testskip=1, sim=True):
     splits = ['train', 'test']
     metas = {}
     for s in splits:
@@ -63,7 +63,10 @@ def load_blender_data(basedir, half_res=False, testskip=1):
         for frame in meta['frames']:
             fname = os.path.join(basedir+f'_{s}', frame['file_name'] + '.png')
             imgs.append(imageio.imread(fname))
-            poses.append(np.array(frame['simulated_matrix']))
+            if sim:
+                poses.append(np.array(frame['simulated_matrix']))
+            else:
+                poses.append(np.array(frame['transform_matrix']))
         imgs = (np.array(imgs) / 255.).astype(np.float32) # keep all 4 channels (RGBA)
         poses = np.array(poses).astype(np.float32)
         counts.append(counts[-1] + imgs.shape[0])
