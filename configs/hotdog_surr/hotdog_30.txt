@@ -1,13 +1,12 @@
-expname = results_debug
-basedir = ./logs
-datadir = ./data/results
+expname = hotdog_30_sim
+basedir = ./logs/sur
+datadir = ./data/HotDogSur_30
 dataset_type = blender
-
-half_res = True
 
 N_rand = 1024
 N_samples = 64
 N_importance = 64
+exact = False
 
 use_viewdirs = True
 raw_noise_std = 1e0

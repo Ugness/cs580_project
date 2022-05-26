@@ -1,11 +1,12 @@
-expname = hotdog_90
-basedir = ./logs
-datadir = ./data/HotDog_90
+expname = hotdog_90_exact
+basedir = ./logs/sur
+datadir = ./data/HotDogSur_90
 dataset_type = blender
 
 N_rand = 1024
 N_samples = 64
 N_importance = 64
+exact = True
 
 use_viewdirs = True
 raw_noise_std = 1e0

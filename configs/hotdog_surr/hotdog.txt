@@ -1,10 +1,9 @@
-expname = orchids_test
+expname = hotdog_test_half
 basedir = ./logs
-datadir = ./data/nerf_llff_data/orchids
-dataset_type = llff
+datadir = ./data/hotdog
+dataset_type = blender_orig
 
-factor = 8
-llffhold = 8
+half_res = True
 
 N_rand = 1024
 N_samples = 64
