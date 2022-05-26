@@ -5,7 +5,7 @@ import imageio
 import json
 import torch.nn.functional as F
 import cv2
-
+# TODO: return the rotation (in radian)
 
 trans_t = lambda t : np.array([
     [1,0,0,0],
@@ -50,11 +50,13 @@ def load_blender_data(basedir, half_res=False, testskip=1, sim=True):
 
     all_imgs = []
     all_poses = []
+    all_rots = []
     counts = [0]
     for s in splits:
         meta = metas[s]
         imgs = []
         poses = []
+        rots = []
         if s=='train' or testskip==0:
             skip = 1
         else:
@@ -63,20 +65,27 @@ def load_blender_data(basedir, half_res=False, testskip=1, sim=True):
         for frame in meta['frames']:
             fname = os.path.join(basedir+f'_{s}', frame['file_name'] + '.png')
             imgs.append(imageio.imread(fname))
+            rots.append(float(frame['rotation']))
             if sim:
                 poses.append(np.array(frame['simulated_matrix']))
             else:
                 poses.append(np.array(frame['transform_matrix']))
+
         imgs = (np.array(imgs) / 255.).astype(np.float32) # keep all 4 channels (RGBA)
         poses = np.array(poses).astype(np.float32)
         counts.append(counts[-1] + imgs.shape[0])
         all_imgs.append(imgs)
         all_poses.append(poses)
+        if max(rots) == min(rots):
+            all_rots.append(np.cumsum(np.array(rots)) - rots[0])
+        else:
+            all_rots.append(np.array(rots))
     
     i_split = [np.arange(counts[i], counts[i+1]) for i in range(len(splits))]
     
     imgs = np.concatenate(all_imgs, 0)
     poses = np.concatenate(all_poses, 0)
+    rots = np.concatenate(all_rots, 0)
     
     H, W = imgs[0].shape[:2]
     camera_angle_x = float(meta['camera_angle_x'])
@@ -96,6 +105,6 @@ def load_blender_data(basedir, half_res=False, testskip=1, sim=True):
         imgs = imgs_half_res
 
         
-    return imgs, poses, render_poses, [H, W, focal], i_split
+    return imgs, poses, render_poses, [H, W, focal], i_split, rots
 
 
