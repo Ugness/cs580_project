@@ -79,13 +79,11 @@ class NeRF(nn.Module):
         self.use_viewdirs = use_viewdirs
         self.use_rotations = use_rotations
         
-        linears = []
-        linears.append(nn.Linear(input_ch, W))
         self.pts_linears = nn.ModuleList(
-            [nn.Linear(input_ch, W)] + [nn.Linear(W, W) if i not in self.skips else nn.Linear(W + input_ch, W) for i in range(D-1)])
+            [nn.Linear(input_ch_rots + input_ch, W)] + [nn.Linear(W, W) if i not in self.skips else nn.Linear(W + input_ch, W) for i in range(D-1)])
         
         ### Implementation according to the official code release (https://github.com/bmild/nerf/blob/master/run_nerf_helpers.py#L104-L105)
-        self.views_linears = nn.ModuleList([nn.Linear(input_ch_rots + input_ch_views + W, W//2)])
+        self.views_linears = nn.ModuleList([nn.Linear(input_ch_views + W, W//2)])
 
         ### Implementation according to the paper
         # self.views_linears = nn.ModuleList(
@@ -100,18 +98,17 @@ class NeRF(nn.Module):
 
     def forward(self, x):
         input_pts, input_views, input_rots = torch.split(x, [self.input_ch, self.input_ch_views, self.input_ch_rots], dim=-1)
-        h = input_pts
+        h = torch.cat([input_pts, input_rots], dim=-1)
         for i, l in enumerate(self.pts_linears):
             h = self.pts_linears[i](h)
             h = F.relu(h)
             if i in self.skips:
                 h = torch.cat([input_pts, h], -1)
 
-        # TODO: add rotation
         if self.use_viewdirs:
             alpha = self.alpha_linear(h)
             feature = self.feature_linear(h)
-            h = torch.cat([feature, input_views, input_rots], -1)
+            h = torch.cat([feature, input_views], -1)
         
             for i, l in enumerate(self.views_linears):
                 h = self.views_linears[i](h)
