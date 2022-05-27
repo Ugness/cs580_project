@@ -104,7 +104,7 @@ def render(H, W, K, chunk=1024*32, rays=None, rots=None, c2w=None, ndc=True,
     if c2w is not None:
         # special case to render full image
         rays_o, rays_d = get_rays(H, W, K, c2w)
-        rots = repeat(rots, 'n -> (n m)', m = H*W)
+        rots = repeat(rots, 'n -> (n m)', m = H*W).float()
     else:
         # use provided ray batch
         rays_o, rays_d = rays
@@ -499,6 +499,8 @@ def config_parser():
 
     parser.add_argument("--render_only", action='store_true', 
                         help='do not optimize, reload weights and render out render_poses path')
+    parser.add_argument("--render_rot", type=float, default=-1. )
+    parser.add_argument("--render_light", type=int, default=-1. )
     parser.add_argument("--render_test", action='store_true', 
                         help='render the test set instead of render_poses path')
     parser.add_argument("--render_factor", type=int, default=0, 
@@ -637,13 +639,32 @@ def train():
                 # Default is smoother render_poses path
                 images = None
 
-            testsavedir = os.path.join(basedir, expname, 'renderonly_{}_{:06d}'.format('test' if args.render_test else 'path', start))
-            os.makedirs(testsavedir, exist_ok=True)
-            print('test poses shape', render_poses.shape)
+            if args.render_light < 0:
+                testsavedir = os.path.join(basedir, expname, 'renderonly_{}_{:06d}_{}'.format('test' if args.render_test else 'path', start, args.render_rot))
+                os.makedirs(testsavedir, exist_ok=True)
+                print('test poses shape', render_poses.shape)
+                poses = torch.Tensor(poses).to(device).float()
+                rots = torch.Tensor(rots).to(device).float()
 
-            rgbs, _ = render_path(render_poses, hwf, K, args.chunk, render_kwargs_test, gt_imgs=images, savedir=testsavedir, render_factor=args.render_factor)
-            print('Done rendering', testsavedir)
-            imageio.mimwrite(os.path.join(testsavedir, 'video.mp4'), to8b(rgbs), fps=30, quality=8)
+                if args.render_rot > -1:
+                    rots = torch.ones_like(rots) * args.render_rot / 180. * np.pi
+
+                rgbs, _ = render_path(poses[i_test], rots[i_test], hwf, K, args.chunk, render_kwargs_test, gt_imgs=images, savedir=testsavedir, render_factor=args.render_factor)
+                print('Done rendering', testsavedir)
+                imageio.mimwrite(os.path.join(testsavedir, 'video.mp4'), to8b(rgbs), fps=30, quality=8)
+            else:
+                testsavedir = os.path.join(basedir, expname, 'renderlight_{}_{:06d}_{}'.format('test' if args.render_test else 'path', start, args.render_rot))
+                os.makedirs(testsavedir, exist_ok=True)
+                print('test poses shape', render_poses.shape)
+                poses = torch.Tensor(poses).to(device).float()
+                rots = torch.Tensor(rots).to(device).float()
+                idx = i_test[np.ones((args.render_light), dtype=int)]
+                rots = torch.arange(0, 361, 360./args.render_light, device=device)[:args.render_light]
+                rots = rots / 180. * np.pi
+
+                rgbs, _ = render_path(poses[idx], rots, hwf, K, args.chunk, render_kwargs_test, gt_imgs=images, savedir=testsavedir, render_factor=args.render_factor)
+                print('Done rendering', testsavedir)
+                imageio.mimwrite(os.path.join(testsavedir, 'video.mp4'), to8b(rgbs), fps=30, quality=8)
 
             return
 
@@ -678,7 +699,7 @@ def train():
     if use_batching:
         images = torch.Tensor(images).to(device)
     poses = torch.Tensor(poses).to(device)
-    rots = torch.Tensor(rots_train).to(device)
+    rots_train = torch.Tensor(rots_train).to(device)
     if use_batching:
         rays_rgb = torch.Tensor(rays_rgb).to(device)
 
@@ -700,7 +721,7 @@ def train():
         if use_batching:
             # Random over all images
             batch = rays_rgb[i_batch:i_batch+N_rand] # [B, 2+1, 3*?]
-            batch_rots = rots[i_batch:i_batch+N_rand] # [B, 2+1, 3*?]
+            batch_rots = rots_train[i_batch:i_batch+N_rand] # [B, 2+1, 3*?]
             batch = torch.transpose(batch, 0, 1)
             batch_rays, target_s = batch[:2], batch[2]
             # batch_rays, target_s, batch_rots = batch[:2], batch[2], batch[-1]
@@ -710,7 +731,7 @@ def train():
                 print("Shuffle data after an epoch!")
                 rand_idx = torch.randperm(rays_rgb.shape[0])
                 rays_rgb = rays_rgb[rand_idx]
-                rots = rots[rand_idx]
+                rots_train = rots_train[rand_idx]
                 i_batch = 0
         else:
             assert 0
