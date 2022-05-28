@@ -74,7 +74,6 @@ def batchify_rays(rays_flat, static_rays_flat, rots, chunk=1024*32, **kwargs):
     return all_ret
 
 
-# TODO: add rots
 def render(H, W, K, chunk=1024*32, rays=None, static_rays=None, rots=None, c2w=None, static_c2w=None, ndc=True,
                   near=0., far=1.,
                   use_viewdirs=False, use_rotations=False, c2w_staticcam=None,
@@ -223,12 +222,11 @@ def create_nerf(args):
 
     cls_layers = [nn.Linear(input_ch+input_ch_views+input_ch_rots, args.netwidth)]
     for _ in range(2):
-        cls_layers += [nn.ReLU(), nn.Linear(args.netwidth, args.netwidth)]
-    cls_layers += [nn.ReLU(), nn.Linear(args.netwidth, 1)]
+        cls_layers += [nn.BatchNorm1d(args.netwidth), nn.ReLU(), nn.Linear(args.netwidth, args.netwidth)]
+    cls_layers += [nn.BatchNorm1d(args.netwidth), nn.ReLU(), nn.Linear(args.netwidth, 1)]
     cls_layers += [nn.Sigmoid()]
     classifier = nn.Sequential(*cls_layers)
     grad_vars = list(classifier.parameters())
-
 
     # Static Model:
     input_ch_views = 0
@@ -471,7 +469,6 @@ def render_rays(ray_batch,
     static_pts = static_rays_o[...,None,:] + static_rays_d[...,None,:] * z_vals[...,:,None] # [N_rays, N_samples, 3]
 
     rots = repeat(rot_batch, 'n -> n m', m=pts.shape[1])
-    # TODO: add classifier & static_raw.
     clf_alpha = network_query_fn(pts, viewdirs, rots, classifier_fn)
     raw = network_query_fn(pts, viewdirs, rots, network_fn)
     static_raw = static_network_query_fn(static_pts, static_viewdirs, rots, static_network_fn)
@@ -711,25 +708,13 @@ def train():
     render_kwargs_train.update(bds_dict)
     render_kwargs_test.update(bds_dict)
 
-    # TODO: create static model
-    '''
-    print('Creating NERF')
-    render_kwargs_train, render_kwargs_test, start, grad_vars, optimizer = create_nerf(args)
-    print('Creating NERF done')
-    global_step = start
-
-    bds_dict = {
-        'near' : near,
-        'far' : far,
-    }
-    render_kwargs_train.update(bds_dict)
-    render_kwargs_test.update(bds_dict)
-    '''
     # Move testing data to GPU
     render_poses = torch.Tensor(render_poses).to(device)
 
     # Short circuit if only rendering out from trained model
     if args.render_only:
+        # TODO: change model in eval
+        render_kwargs_test['classifier_fn'].eval()
         print('RENDER ONLY')
         with torch.no_grad():
             if args.render_test:
@@ -766,6 +751,7 @@ def train():
                 rgbs, _ = render_path(poses[idx], statics[idx], rots, hwf, K, args.chunk, render_kwargs_test, gt_imgs=images, savedir=testsavedir, render_factor=args.render_factor)
                 print('Done rendering', testsavedir)
                 imageio.mimwrite(os.path.join(testsavedir, 'video.mp4'), to8b(rgbs), fps=30, quality=8)
+            render_kwargs_test['classifier_fn'].train()
 
             return
 
@@ -894,7 +880,11 @@ def train():
         if i%args.i_video==0 and i > 0:
             # Turn on testing mode
             with torch.no_grad():
+                # TODO: change model in eval
+                render_kwargs_test['classifier_fn'].eval()
                 rgbs, disps = render_path(poses[i_test], statics[i_test], rots[i_test], hwf, K, args.chunk, render_kwargs_test)
+                # TODO: change model in train
+                render_kwargs_test['classifier_fn'].train()
             print('Done, saving', rgbs.shape, disps.shape)
             moviebase = os.path.join(basedir, expname, '{}_spiral_{:06d}_'.format(expname, i))
             imageio.mimwrite(moviebase + 'rgb.mp4', to8b(rgbs), fps=30, quality=8)
@@ -912,7 +902,11 @@ def train():
             os.makedirs(testsavedir, exist_ok=True)
             print('test poses shape', poses[i_test].shape)
             with torch.no_grad():
+                # TODO: change model in eval
+                render_kwargs_test['classifier_fn'].eval()
                 render_path(torch.Tensor(poses[i_test]).to(device), torch.Tensor(statics[i_test]).to(device), rots[i_test], hwf, K, args.chunk, render_kwargs_test, gt_imgs=images[i_test], savedir=testsavedir)
+                render_kwargs_test['classifier_fn'].train()
+                # TODO: change model in eval
             print('Saved test set')
 
 
@@ -935,8 +929,12 @@ def train():
                 static = statics[img_i, :3, :4]
                 rot = rots[img_i]
                 with torch.no_grad():
+                    # TODO: change model in eval
+                    render_kwargs_test['classifier_fn'].eval()
                     rgb, disp, acc, extras = render(H, W, K, rots = rot.view(1), chunk=args.chunk, c2w=pose, static_c2w=static,
                                                         **render_kwargs_test)
+                    # TODO: change model in eval
+                    render_kwargs_test['classifier_fn'].train()
 
                 psnr = mse2psnr(img2mse(rgb, target))
 
