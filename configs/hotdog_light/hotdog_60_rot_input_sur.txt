@@ -1,6 +1,6 @@
-expname = hotdog_30_rot
+expname = hotdog_60_rot_input_sur2
 basedir = ./logs/lighting
-datadir = ./data/HotDog_30
+datadir = ./data/HotDogSur_60
 dataset_type = blender
 
 N_rand = 1024

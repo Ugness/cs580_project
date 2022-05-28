@@ -1,4 +1,4 @@
-expname = hotdog_30_rot
+expname = hotdog_30_rot_input
 basedir = ./logs/lighting
 datadir = ./data/HotDog_30
 dataset_type = blender
