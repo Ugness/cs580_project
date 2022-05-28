@@ -689,9 +689,6 @@ def train():
         rots_train = rots[i_train]
         rots_train = repeat(rots_train, 'n -> (n h w)', h=H, w=W)
         rots_train = rots_train[rand_idx]
-
-        rots_test = rots[i_test]
-        rots_test = repeat(rots_test, 'n -> (n h w)', h=H, w=W)
         print('done')
         i_batch = 0
 
@@ -699,6 +696,7 @@ def train():
     if use_batching:
         images = torch.Tensor(images).to(device)
     poses = torch.Tensor(poses).to(device)
+    rots = torch.Tensor(rots).to(device).float()
     rots_train = torch.Tensor(rots_train).to(device)
     if use_batching:
         rays_rgb = torch.Tensor(rays_rgb).to(device)
