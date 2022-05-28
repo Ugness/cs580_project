@@ -41,7 +41,7 @@ def pose_spherical2(theta, phi, radius):
     c2w = np.einsum('ij, bjk -> bik', np.array([[-1,0,0,0],[0,0,1,0],[0,1,0,0],[0,0,0,1]]), c2w)
     return c2w
 
-def load_blender_data(basedir, half_res=False, testskip=1, sim=True):
+def load_blender_data(basedir, half_res=False, testskip=1):
     splits = ['train', 'test']
     metas = {}
     for s in splits:
@@ -50,12 +50,14 @@ def load_blender_data(basedir, half_res=False, testskip=1, sim=True):
 
     all_imgs = []
     all_poses = []
+    all_statics = []
     all_rots = []
     counts = [0]
     for s in splits:
         meta = metas[s]
         imgs = []
         poses = []
+        statics = []
         rots = []
         if s=='train' or testskip==0:
             skip = 1
@@ -66,16 +68,16 @@ def load_blender_data(basedir, half_res=False, testskip=1, sim=True):
             fname = os.path.join(basedir+f'_{s}', frame['file_name'] + '.png')
             imgs.append(imageio.imread(fname))
             rots.append(float(frame['rotation']))
-            if sim:
-                poses.append(np.array(frame['simulated_matrix']))
-            else:
-                poses.append(np.array(frame['transform_matrix']))
+            poses.append(np.array(frame['simulated_matrix']))
+            statics.append(np.array(frame['transform_matrix']))
 
         imgs = (np.array(imgs) / 255.).astype(np.float32) # keep all 4 channels (RGBA)
         poses = np.array(poses).astype(np.float32)
+        statics = np.array(statics).astype(np.float32)
         counts.append(counts[-1] + imgs.shape[0])
         all_imgs.append(imgs)
         all_poses.append(poses)
+        all_statics.append(statics)
         if max(rots) == min(rots):
             all_rots.append(np.cumsum(np.array(rots)) - rots[0])
         else:
@@ -85,6 +87,7 @@ def load_blender_data(basedir, half_res=False, testskip=1, sim=True):
     
     imgs = np.concatenate(all_imgs, 0)
     poses = np.concatenate(all_poses, 0)
+    statics = np.concatenate(all_statics, 0)
     rots = np.concatenate(all_rots, 0)
     
     H, W = imgs[0].shape[:2]
@@ -105,6 +108,6 @@ def load_blender_data(basedir, half_res=False, testskip=1, sim=True):
         imgs = imgs_half_res
 
         
-    return imgs, poses, render_poses, [H, W, focal], i_split, rots
+    return imgs, poses, statics, render_poses, [H, W, focal], i_split, rots
 
 
