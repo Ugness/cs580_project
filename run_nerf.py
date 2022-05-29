@@ -76,7 +76,7 @@ def batchify_rays(rays_flat, static_rays_flat, rots, chunk=1024*32, **kwargs):
 
 def render(H, W, K, chunk=1024*32, rays=None, static_rays=None, rots=None, c2w=None, static_c2w=None, ndc=True,
                   near=0., far=1.,
-                  use_viewdirs=False, use_rotations=False, c2w_staticcam=None,
+                  use_viewdirs=False, use_rotations=False, c2w_staticcam=None, fg_only=False,
                   **kwargs):
     """Render rays
     Args:
@@ -150,7 +150,7 @@ def render(H, W, K, chunk=1024*32, rays=None, static_rays=None, rots=None, c2w=N
     return ret_list + [ret_dict]
 
 
-def render_path(render_poses, static_poses, rots, hwf, K, chunk, render_kwargs, gt_imgs=None, savedir=None, render_factor=0):
+def render_path(render_poses, static_poses, rots, hwf, K, chunk, render_kwargs, gt_imgs=None, savedir=None, render_factor=0, fg_only=False):
 
     H, W, focal = hwf
 
@@ -283,7 +283,7 @@ def create_nerf(args):
         ckpt = torch.load(ckpt_path)
 
         start = ckpt['global_step']
-        optimizer.load_state_dict(ckpt['optimizer_state_dict'])
+        # optimizer.load_state_dict(ckpt['optimizer_state_dict'])
 
         # Load model
         classifier.load_state_dict(ckpt['classifier_state_dict'])
@@ -400,6 +400,7 @@ def render_rays(ray_batch,
                 white_bkgd=False,
                 raw_noise_std=0.,
                 verbose=False,
+                fg_only=False,
                 pytest=False):
     """Volumetric rendering.
     Args:
@@ -472,6 +473,8 @@ def render_rays(ray_batch,
     clf_alpha = network_query_fn(pts, viewdirs, rots, classifier_fn)
     raw = network_query_fn(pts, viewdirs, rots, network_fn)
     static_raw = static_network_query_fn(static_pts, static_viewdirs, rots, static_network_fn)
+    if fg_only:
+        static_raw = torch.zeros_like(static_raw)
     raw = clf_alpha * raw + (1.-clf_alpha) * static_raw
     rgb_map, disp_map, acc_map, weights, depth_map = raw2outputs(raw, z_vals, rays_d, raw_noise_std, white_bkgd, pytest=pytest)
 
@@ -495,6 +498,9 @@ def render_rays(ray_batch,
         static_raw = static_network_query_fn(static_pts, static_viewdirs, rots, static_run_fn)
 
         clf_alpha = network_query_fn(pts, viewdirs, rots, classifier_fn)
+
+        if fg_only:
+            static_raw = torch.zeros_like(static_raw)
 
         raw = clf_alpha * raw + (1.-clf_alpha) * static_raw
 
@@ -570,6 +576,8 @@ def config_parser():
                         help='use full 5D input instead of 3D')
     parser.add_argument("--use_rotations", action='store_true', 
                         help='use rotation')
+    parser.add_argument("--fg_only", action='store_true', 
+                        help='render foreground only')
     parser.add_argument("--i_embed", type=int, default=0, 
                         help='set 0 for default positional encoding, -1 for none')
     parser.add_argument("--multires", type=int, default=10, 
@@ -715,6 +723,7 @@ def train():
     if args.render_only:
         # TODO: change model in eval
         render_kwargs_test['classifier_fn'].eval()
+        render_kwargs_test['fg_only'] = args.fg_only
         print('RENDER ONLY')
         with torch.no_grad():
             if args.render_test:
@@ -726,6 +735,8 @@ def train():
 
             if args.render_light < 0:
                 testsavedir = os.path.join(basedir, expname, 'renderonly_{}_{:06d}_{}'.format('test' if args.render_test else 'path', start, args.render_rot))
+                if args.fg_only:
+                    testsavedir += '_fg'
                 os.makedirs(testsavedir, exist_ok=True)
                 print('test poses shape', render_poses.shape)
                 poses = torch.Tensor(poses).to(device).float()
@@ -740,9 +751,12 @@ def train():
                 imageio.mimwrite(os.path.join(testsavedir, 'video.mp4'), to8b(rgbs), fps=30, quality=8)
             else:
                 testsavedir = os.path.join(basedir, expname, 'renderlight_{}_{:06d}_{}'.format('test' if args.render_test else 'path', start, args.render_rot))
+                if args.fg_only:
+                    testsavedir += '_fg'
                 os.makedirs(testsavedir, exist_ok=True)
                 print('test poses shape', render_poses.shape)
                 poses = torch.Tensor(poses).to(device).float()
+                statics = torch.Tensor(statics).to(device).float()
                 rots = torch.Tensor(rots).to(device).float()
                 idx = i_test[np.ones((args.render_light), dtype=int)]
                 rots = torch.arange(0, 361, 360./args.render_light, device=device)[:args.render_light]
