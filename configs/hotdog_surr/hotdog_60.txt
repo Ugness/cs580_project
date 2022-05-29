@@ -1,5 +1,5 @@
-expname = debug
-basedir = ./logs/
+expname = hotdog_60_clf
+basedir = ./logs/surroundings
 datadir = ./data/HotDogSur_60
 dataset_type = blender
 
@@ -7,7 +7,10 @@ N_rand = 1024
 N_samples = 64
 N_importance = 64
 
-dynamic_ft_path = 'logs/lighting/hotdog_60_rot_input_sur2/050000.tar'
+dynamic_ft_path = 'logs/lighting/hotdog_60_rot_input_sur2/200000.tar'
 static_ft_path = 'logs/lighting/hotdog_60_no_rot_exact/200000.tar'
 use_viewdirs = True
 raw_noise_std = 1e0
+lrate = 1e-4
+
+i_img = 5000
