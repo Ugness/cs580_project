@@ -653,7 +653,7 @@ def train():
                 print('Done rendering', testsavedir)
                 imageio.mimwrite(os.path.join(testsavedir, 'video.mp4'), to8b(rgbs), fps=30, quality=8)
             else:
-                testsavedir = os.path.join(basedir, expname, 'renderlight_{}_{:06d}_{}'.format('test' if args.render_test else 'path', start, args.render_rot))
+                testsavedir = os.path.join(basedir, expname, 'renderlight_{}_{:06d}'.format('test' if args.render_test else 'path', start))
                 os.makedirs(testsavedir, exist_ok=True)
                 print('test poses shape', render_poses.shape)
                 poses = torch.Tensor(poses).to(device).float()
